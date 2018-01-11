@@ -9,6 +9,8 @@ except ImportError:
     from urllib.request import urlopen, HTTPError
     from urllib.parse import urlencode
 
+from web3 import Web3, HTTPProvider, IPCProvider
+
 from cert_core import Chain
 from cert_issuer.models import ServiceProviderConnector
 from cert_issuer.errors import BroadcastError
@@ -112,6 +114,29 @@ class EtherscanBroadcaster(object):
         raise BroadcastError('Error checking the nonce through the Etherscan API. Error msg: %s', response.text)
 
 
+class Web3Provider(object):
+    def __init__(self, provider):
+        self.provider = Web3(provider)
+
+    def broadcast_tx(self, tx, _api_token):
+        return self.provider.eth.sendRawTransaction(tx)
+
+    def get_balance(self, address, _api_token):
+        return self.provider.eth.getBalance(address)
+
+    def get_address_nonce(self, address, _api_token):
+        return self.provider.eth.getTransactionCount(address)
+
+class Web3HttpProvider(Web3Provider):
+    def __init__(self, uri='http://localhost:8545'):
+        super(Web3HttpProvider, self).__init__(HTTPProvider(uri))
+
+
+class Web3IpcProvider(Web3Provider):
+    def __init__(self):
+        super(Web3HttpProvider, self).__init__(IPCProvider())
+
+
 PYCOIN_BTC_PROVIDERS = "blockchain.info blockexplorer.com blockcypher.com chain.so"
 PYCOIN_XTN_PROVIDERS = "blockexplorer.com"  # chain.so
 
@@ -120,14 +145,16 @@ connectors = {}
 
 # Configure Ethereum mainnet connectors
 eth_provider_list = []
-eth_provider_list.append(EtherscanBroadcaster('https://api.etherscan.io/api'))
+# eth_provider_list.append(EtherscanBroadcaster('https://api.etherscan.io/api'))
+eth_provider_list.append(Web3HttpProvider())
 connectors[Chain.ethereum_mainnet] = eth_provider_list
 
 # Configure Ethereum Ropsten testnet connectors
 rop_provider_list = []
-rop_provider_list.append(EtherscanBroadcaster('https://ropsten.etherscan.io/api'))
+# rop_provider_list.append(EtherscanBroadcaster('https://ropsten.etherscan.io/api'))
+rop_provider_list.append(Web3HttpProvider())
 connectors[Chain.ethereum_ropsten] = rop_provider_list
 
 
-def get_providers_for_chain(chain):
+def get_providers_for_chain(chain, _):
     return connectors[chain]
